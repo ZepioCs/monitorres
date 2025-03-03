@@ -440,9 +440,20 @@
     "v8_trace_maps": 0,
     "v8_use_siphash": 1,
     "want_separate_host_toolset": 0,
-    "nodedir": "C:\\Users\\Sebastian\\AppData\\Local\\node-gyp\\Cache\\22.9.0",
+    "nodedir": "C:\\Users\\SEBAST~1\\AppData\\Local\\Temp\\prebuildify\\node\\23.0.0",
     "python": "C:\\Users\\Sebastian\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
     "standalone_static_library": 1,
-    "msbuild_path": "C:\\Program Files\\Microsoft Visual Studio\\2022\\Preview\\MSBuild\\Current\\Bin\\MSBuild.exe"
+    "msbuild_path": "C:\\Program Files\\Microsoft Visual Studio\\2022\\Preview\\MSBuild\\Current\\Bin\\MSBuild.exe",
+    "target": "23.0.0",
+    "cache": "C:\\Users\\Sebastian\\AppData\\Local\\npm-cache",
+    "globalconfig": "C:\\Program Files\\nodejs\\etc\\npmrc",
+    "global_prefix": "C:\\Program Files\\nodejs",
+    "init_module": "C:\\Users\\Sebastian\\.npm-init.js",
+    "local_prefix": "D:\\DeveloperEnv\\Other\\Library\\Node\\monitorres",
+    "node_gyp": "C:\\Users\\Sebastian\\.bun\\install\\global\\node_modules\\npm\\node_modules\\node-gyp\\bin\\node-gyp.js",
+    "npm_version": "10.9.0",
+    "prefix": "C:\\Program Files\\nodejs",
+    "userconfig": "C:\\Users\\Sebastian\\.npmrc",
+    "user_agent": "npm/10.9.0 node/v22.9.0 win32 x64 workspaces/false"
   }
 }

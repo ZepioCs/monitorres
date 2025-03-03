@@ -8,6 +8,7 @@
     "test": "node test.js",
     "install": "node-gyp rebuild",
     "build": "node-gyp rebuild",
+    "prebuild": "prebuildify --napi --strip",
     "clean": "node-gyp clean"
   },
   "keywords": [
@@ -19,8 +20,8 @@
     "native",
     "addon"
   ],
-  "author": "",
-  "license": "ISC",
+  "author": "Sebastian Graebsch <graebschsebastian16@gmail.com>",
+  "license": "MIT",
   "dependencies": {
     "node-addon-api": "^7.0.0"
   },
@@ -42,5 +43,12 @@
     "binding.gyp",
     "README.md",
     "LICENSE"
-  ]
+  ],
+  "devDependencies": {
+    "prebuildify": "^6.0.1"
+  },
+  "homepage": "https://github.com/zepiocs/monitorres#readme",
+  "bugs": {
+    "url": "https://github.com/zepiocs/monitorres/issues"
+  }
 }
