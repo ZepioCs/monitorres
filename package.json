@@ -1,0 +1,46 @@
+{
+  "name": "monitorres",
+  "version": "1.0.0",
+  "description": "A Node.js native addon for managing monitor resolutions on Windows",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "scripts": {
+    "test": "node test.js",
+    "install": "node-gyp rebuild",
+    "build": "node-gyp rebuild",
+    "clean": "node-gyp clean"
+  },
+  "keywords": [
+    "monitor",
+    "resolution",
+    "screen",
+    "display",
+    "windows",
+    "native",
+    "addon"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "node-addon-api": "^7.0.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "os": [
+    "win32"
+  ],
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "gypfile": true,
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "src",
+    "binding.gyp",
+    "README.md",
+    "LICENSE"
+  ]
+}
