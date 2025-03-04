@@ -4,6 +4,7 @@
 #include <string>
 #include <set>
 #include <vector>
+#include <algorithm>
 
 // Helper function to get detailed error information
 Napi::Value GetDetailedError(Napi::Env env, long errorCode)
@@ -159,15 +160,21 @@ Napi::Value SetAllScreenResolutions(const Napi::CallbackInfo &info)
 
         // Default to current refresh rate if not specified
         int refreshRate = currentDevMode.dmDisplayFrequency;
+        bool customRefreshRate = false;
 
         // Override with user-specified refresh rate if provided
         if (info.Length() >= 3 && !info[2].IsUndefined() && info[2].IsNumber())
         {
             refreshRate = info[2].As<Napi::Number>().Int32Value();
+            customRefreshRate = true;
         }
 
         // Validate that the requested mode is supported
         bool isModeSupported = false;
+        bool isResolutionSupported = false;
+        int closestRefreshRate = 0;
+        std::vector<int> availableRefreshRates;
+
         DEVMODE testMode;
         ZeroMemory(&testMode, sizeof(DEVMODE));
         testMode.dmSize = sizeof(DEVMODE);
@@ -175,21 +182,94 @@ Napi::Value SetAllScreenResolutions(const Napi::CallbackInfo &info)
         int modeIndex = 0;
         while (EnumDisplaySettings(NULL, modeIndex++, &testMode))
         {
-            if (testMode.dmPelsWidth == width &&
-                testMode.dmPelsHeight == height &&
-                testMode.dmDisplayFrequency == refreshRate)
+            // Check if the resolution matches
+            if (testMode.dmPelsWidth == width && testMode.dmPelsHeight == height)
             {
-                isModeSupported = true;
-                break;
+                isResolutionSupported = true;
+                availableRefreshRates.push_back(testMode.dmDisplayFrequency);
+
+                // Check if the refresh rate matches exactly
+                if (testMode.dmDisplayFrequency == refreshRate)
+                {
+                    isModeSupported = true;
+                    break;
+                }
+
+                // Keep track of the closest refresh rate
+                if (closestRefreshRate == 0 ||
+                    abs(static_cast<int>(testMode.dmDisplayFrequency) - static_cast<int>(refreshRate)) <
+                        abs(static_cast<int>(closestRefreshRate) - static_cast<int>(refreshRate)))
+                {
+                    closestRefreshRate = testMode.dmDisplayFrequency;
+                }
             }
         }
 
-        if (!isModeSupported)
+        // If custom refresh rate was specified but not supported, try with the closest available refresh rate
+        if (customRefreshRate && !isModeSupported && isResolutionSupported)
+        {
+            // Create new settings based on current ones with the closest refresh rate
+            DEVMODE newDevMode = currentDevMode;
+            newDevMode.dmPelsWidth = width;
+            newDevMode.dmPelsHeight = height;
+            newDevMode.dmDisplayFrequency = closestRefreshRate;
+            newDevMode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY;
+
+            // Sort refresh rates for better error message
+            std::sort(availableRefreshRates.begin(), availableRefreshRates.end());
+
+            // Create a string of available refresh rates
+            std::string availableRatesStr = "";
+            for (size_t i = 0; i < availableRefreshRates.size(); i++)
+            {
+                availableRatesStr += std::to_string(availableRefreshRates[i]);
+                if (i < availableRefreshRates.size() - 1)
+                    availableRatesStr += ", ";
+            }
+
+            // Apply the settings with the closest refresh rate
+            long result = ChangeDisplaySettings(&newDevMode, 0);
+
+            if (result != DISP_CHANGE_SUCCESSFUL)
+            {
+                Napi::Object error = Napi::Object::New(env);
+                error.Set("code", Napi::Number::New(env, result));
+                error.Set("message", Napi::String::New(env,
+                                                       "The requested refresh rate (" + std::to_string(refreshRate) + "Hz) is not supported for resolution " +
+                                                           std::to_string(width) + "x" + std::to_string(height) + ". " +
+                                                           "Available refresh rates: " + availableRatesStr + ". " +
+                                                           "Attempted to use closest rate (" + std::to_string(closestRefreshRate) + "Hz) but failed."));
+                return error;
+            }
+
+            // Success with closest refresh rate
+            Napi::Object result_obj = Napi::Object::New(env);
+            result_obj.Set("success", Napi::Boolean::New(env, true));
+            result_obj.Set("message", Napi::String::New(env,
+                                                        "Used closest available refresh rate: " + std::to_string(closestRefreshRate) + "Hz instead of requested " +
+                                                            std::to_string(refreshRate) + "Hz. Available rates: " + availableRatesStr));
+            result_obj.Set("actualRefreshRate", Napi::Number::New(env, closestRefreshRate));
+            return result_obj;
+        }
+
+        if (!isResolutionSupported)
         {
             Napi::Object error = Napi::Object::New(env);
             error.Set("code", Napi::Number::New(env, DISP_CHANGE_BADMODE));
             error.Set("message", Napi::String::New(env,
-                                                   "The requested resolution and refresh rate combination is not supported. "
+                                                   "The requested resolution is not supported. "
+                                                   "Width: " +
+                                                       std::to_string(width) +
+                                                       ", Height: " + std::to_string(height)));
+            return error;
+        }
+
+        if (!isModeSupported && customRefreshRate)
+        {
+            Napi::Object error = Napi::Object::New(env);
+            error.Set("code", Napi::Number::New(env, DISP_CHANGE_BADMODE));
+            error.Set("message", Napi::String::New(env,
+                                                   "The requested refresh rate is not supported for this resolution. "
                                                    "Width: " +
                                                        std::to_string(width) +
                                                        ", Height: " + std::to_string(height) +
@@ -321,11 +401,13 @@ Napi::Value SetMonitorResolution(const Napi::CallbackInfo &info)
 
         // Default to current refresh rate if not specified
         int refreshRate = currentDevMode.dmDisplayFrequency;
+        bool customRefreshRate = false;
 
         // Override with user-specified refresh rate if provided
         if (info.Length() >= 4 && !info[3].IsUndefined() && info[3].IsNumber())
         {
             refreshRate = info[3].As<Napi::Number>().Int32Value();
+            customRefreshRate = true;
         }
 
         // Create new settings based on current ones
@@ -337,6 +419,10 @@ Napi::Value SetMonitorResolution(const Napi::CallbackInfo &info)
 
         // Validate that the requested mode is supported
         bool isModeSupported = false;
+        bool isResolutionSupported = false;
+        int closestRefreshRate = 0;
+        std::vector<int> availableRefreshRates;
+
         DEVMODE testMode;
         ZeroMemory(&testMode, sizeof(DEVMODE));
         testMode.dmSize = sizeof(DEVMODE);
@@ -344,21 +430,90 @@ Napi::Value SetMonitorResolution(const Napi::CallbackInfo &info)
         int modeIndex = 0;
         while (EnumDisplaySettings(id.c_str(), modeIndex++, &testMode))
         {
-            if (testMode.dmPelsWidth == width &&
-                testMode.dmPelsHeight == height &&
-                testMode.dmDisplayFrequency == refreshRate)
+            // Check if the resolution matches
+            if (testMode.dmPelsWidth == width && testMode.dmPelsHeight == height)
             {
-                isModeSupported = true;
-                break;
+                isResolutionSupported = true;
+                availableRefreshRates.push_back(testMode.dmDisplayFrequency);
+
+                // Check if the refresh rate matches exactly
+                if (testMode.dmDisplayFrequency == refreshRate)
+                {
+                    isModeSupported = true;
+                    break;
+                }
+
+                // Keep track of the closest refresh rate
+                if (closestRefreshRate == 0 ||
+                    abs(static_cast<int>(testMode.dmDisplayFrequency) - static_cast<int>(refreshRate)) <
+                        abs(static_cast<int>(closestRefreshRate) - static_cast<int>(refreshRate)))
+                {
+                    closestRefreshRate = testMode.dmDisplayFrequency;
+                }
             }
         }
 
-        if (!isModeSupported)
+        // If custom refresh rate was specified but not supported, try with the closest available refresh rate
+        if (customRefreshRate && !isModeSupported && isResolutionSupported)
+        {
+            // Use the closest refresh rate instead
+            newDevMode.dmDisplayFrequency = closestRefreshRate;
+
+            // Sort refresh rates for better error message
+            std::sort(availableRefreshRates.begin(), availableRefreshRates.end());
+
+            // Create a string of available refresh rates
+            std::string availableRatesStr = "";
+            for (size_t i = 0; i < availableRefreshRates.size(); i++)
+            {
+                availableRatesStr += std::to_string(availableRefreshRates[i]);
+                if (i < availableRefreshRates.size() - 1)
+                    availableRatesStr += ", ";
+            }
+
+            // Apply the settings with the closest refresh rate
+            long result = ChangeDisplaySettingsEx(id.c_str(), &newDevMode, NULL, CDS_UPDATEREGISTRY, NULL);
+
+            if (result != DISP_CHANGE_SUCCESSFUL)
+            {
+                Napi::Object error = Napi::Object::New(env);
+                error.Set("code", Napi::Number::New(env, result));
+                error.Set("message", Napi::String::New(env,
+                                                       "The requested refresh rate (" + std::to_string(refreshRate) + "Hz) is not supported for resolution " +
+                                                           std::to_string(width) + "x" + std::to_string(height) + ". " +
+                                                           "Available refresh rates: " + availableRatesStr + ". " +
+                                                           "Attempted to use closest rate (" + std::to_string(closestRefreshRate) + "Hz) but failed."));
+                return error;
+            }
+
+            // Success with closest refresh rate
+            Napi::Object result_obj = Napi::Object::New(env);
+            result_obj.Set("success", Napi::Boolean::New(env, true));
+            result_obj.Set("message", Napi::String::New(env,
+                                                        "Used closest available refresh rate: " + std::to_string(closestRefreshRate) + "Hz instead of requested " +
+                                                            std::to_string(refreshRate) + "Hz. Available rates: " + availableRatesStr));
+            result_obj.Set("actualRefreshRate", Napi::Number::New(env, closestRefreshRate));
+            return result_obj;
+        }
+
+        if (!isResolutionSupported)
         {
             Napi::Object error = Napi::Object::New(env);
             error.Set("code", Napi::Number::New(env, DISP_CHANGE_BADMODE));
             error.Set("message", Napi::String::New(env,
-                                                   "The requested resolution and refresh rate combination is not supported. "
+                                                   "The requested resolution is not supported. "
+                                                   "Width: " +
+                                                       std::to_string(width) +
+                                                       ", Height: " + std::to_string(height)));
+            return error;
+        }
+
+        if (!isModeSupported && customRefreshRate)
+        {
+            Napi::Object error = Napi::Object::New(env);
+            error.Set("code", Napi::Number::New(env, DISP_CHANGE_BADMODE));
+            error.Set("message", Napi::String::New(env,
+                                                   "The requested refresh rate is not supported for this resolution. "
                                                    "Width: " +
                                                        std::to_string(width) +
                                                        ", Height: " + std::to_string(height) +
