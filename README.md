@@ -14,9 +14,12 @@ A Node.js native addon for managing monitor resolutions on Windows systems.
 
 ## Changelog
 
-### Version 1.0.1
+### Version 1.0.2
 
 - Fixed issue with resolution and refresh rate settings not being properly applied
+
+### Version 1.0.1
+
 - Added validation to ensure requested resolution and refresh rate combinations are supported
 - Improved handling of undefined refresh rate parameter (now defaults to current refresh rate)
 - Enhanced error reporting with more detailed messages
