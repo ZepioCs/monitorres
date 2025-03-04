@@ -12,6 +12,19 @@ A Node.js native addon for managing monitor resolutions on Windows systems.
 - Get all available resolutions for a specific monitor
 - Get the system DPI settings
 
+## Changelog
+
+### Version 1.0.1
+
+- Fixed issue with resolution and refresh rate settings not being properly applied
+- Added validation to ensure requested resolution and refresh rate combinations are supported
+- Improved handling of undefined refresh rate parameter (now defaults to current refresh rate)
+- Enhanced error reporting with more detailed messages
+
+### Version 1.0.0
+
+- Initial release
+
 ## Installation
 
 ```bash
@@ -80,9 +93,11 @@ Set the resolution for all screens.
 
 - `width` (number): The width in pixels
 - `height` (number): The height in pixels
-- `refreshRate` (number, optional): The refresh rate in Hz (default: 60)
+- `refreshRate` (number, optional): The refresh rate in Hz (defaults to current refresh rate if not specified)
 
 **Returns**: `boolean|Object` - True if successful, or error object with details if failed
+
+**Note**: The function validates that the requested resolution and refresh rate combination is supported before applying it.
 
 ### getAllMonitors()
 
@@ -99,9 +114,11 @@ Set the resolution for a specific monitor.
 - `monitorId` (string): The monitor ID (from getAllMonitors)
 - `width` (number): The width in pixels
 - `height` (number): The height in pixels
-- `refreshRate` (number, optional): The refresh rate in Hz (default: 60)
+- `refreshRate` (number, optional): The refresh rate in Hz (defaults to current refresh rate if not specified)
 
 **Returns**: `boolean|Object` - True if successful, or error object with details if failed
+
+**Note**: The function validates that the requested resolution and refresh rate combination is supported before applying it.
 
 ### getMonitorResolution(monitorId)
 

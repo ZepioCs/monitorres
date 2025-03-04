@@ -145,22 +145,66 @@ Napi::Value SetAllScreenResolutions(const Napi::CallbackInfo &info)
 
         int width = info[0].As<Napi::Number>().Int32Value();
         int height = info[1].As<Napi::Number>().Int32Value();
-        int refreshRate = 60; // Default refresh rate
 
-        if (info.Length() >= 3 && info[2].IsNumber())
+        // First get the current settings to preserve other values
+        DEVMODE currentDevMode;
+        ZeroMemory(&currentDevMode, sizeof(DEVMODE));
+        currentDevMode.dmSize = sizeof(DEVMODE);
+
+        if (!EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &currentDevMode))
+        {
+            Napi::Error::New(env, "Failed to get current display settings").ThrowAsJavaScriptException();
+            return env.Null();
+        }
+
+        // Default to current refresh rate if not specified
+        int refreshRate = currentDevMode.dmDisplayFrequency;
+
+        // Override with user-specified refresh rate if provided
+        if (info.Length() >= 3 && !info[2].IsUndefined() && info[2].IsNumber())
         {
             refreshRate = info[2].As<Napi::Number>().Int32Value();
         }
 
-        DEVMODE devMode;
-        ZeroMemory(&devMode, sizeof(DEVMODE));
-        devMode.dmSize = sizeof(DEVMODE);
-        devMode.dmPelsWidth = width;
-        devMode.dmPelsHeight = height;
-        devMode.dmDisplayFrequency = refreshRate;
-        devMode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY;
+        // Validate that the requested mode is supported
+        bool isModeSupported = false;
+        DEVMODE testMode;
+        ZeroMemory(&testMode, sizeof(DEVMODE));
+        testMode.dmSize = sizeof(DEVMODE);
 
-        long result = ChangeDisplaySettings(&devMode, 0);
+        int modeIndex = 0;
+        while (EnumDisplaySettings(NULL, modeIndex++, &testMode))
+        {
+            if (testMode.dmPelsWidth == width &&
+                testMode.dmPelsHeight == height &&
+                testMode.dmDisplayFrequency == refreshRate)
+            {
+                isModeSupported = true;
+                break;
+            }
+        }
+
+        if (!isModeSupported)
+        {
+            Napi::Object error = Napi::Object::New(env);
+            error.Set("code", Napi::Number::New(env, DISP_CHANGE_BADMODE));
+            error.Set("message", Napi::String::New(env,
+                                                   "The requested resolution and refresh rate combination is not supported. "
+                                                   "Width: " +
+                                                       std::to_string(width) +
+                                                       ", Height: " + std::to_string(height) +
+                                                       ", Refresh Rate: " + std::to_string(refreshRate)));
+            return error;
+        }
+
+        // Create new settings based on current ones
+        DEVMODE newDevMode = currentDevMode;
+        newDevMode.dmPelsWidth = width;
+        newDevMode.dmPelsHeight = height;
+        newDevMode.dmDisplayFrequency = refreshRate;
+        newDevMode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY;
+
+        long result = ChangeDisplaySettings(&newDevMode, 0);
 
         if (result != DISP_CHANGE_SUCCESSFUL)
         {
@@ -263,12 +307,6 @@ Napi::Value SetMonitorResolution(const Napi::CallbackInfo &info)
         std::string id = info[0].As<Napi::String>().Utf8Value();
         int width = info[1].As<Napi::Number>().Int32Value();
         int height = info[2].As<Napi::Number>().Int32Value();
-        int refreshRate = 60; // Default refresh rate
-
-        if (info.Length() >= 4 && info[3].IsNumber())
-        {
-            refreshRate = info[3].As<Napi::Number>().Int32Value();
-        }
 
         // First get the current settings to preserve other values
         DEVMODE currentDevMode;
@@ -281,6 +319,15 @@ Napi::Value SetMonitorResolution(const Napi::CallbackInfo &info)
             return env.Null();
         }
 
+        // Default to current refresh rate if not specified
+        int refreshRate = currentDevMode.dmDisplayFrequency;
+
+        // Override with user-specified refresh rate if provided
+        if (info.Length() >= 4 && !info[3].IsUndefined() && info[3].IsNumber())
+        {
+            refreshRate = info[3].As<Napi::Number>().Int32Value();
+        }
+
         // Create new settings based on current ones
         DEVMODE newDevMode = currentDevMode;
         newDevMode.dmPelsWidth = width;
@@ -288,6 +335,38 @@ Napi::Value SetMonitorResolution(const Napi::CallbackInfo &info)
         newDevMode.dmDisplayFrequency = refreshRate;
         newDevMode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY;
 
+        // Validate that the requested mode is supported
+        bool isModeSupported = false;
+        DEVMODE testMode;
+        ZeroMemory(&testMode, sizeof(DEVMODE));
+        testMode.dmSize = sizeof(DEVMODE);
+
+        int modeIndex = 0;
+        while (EnumDisplaySettings(id.c_str(), modeIndex++, &testMode))
+        {
+            if (testMode.dmPelsWidth == width &&
+                testMode.dmPelsHeight == height &&
+                testMode.dmDisplayFrequency == refreshRate)
+            {
+                isModeSupported = true;
+                break;
+            }
+        }
+
+        if (!isModeSupported)
+        {
+            Napi::Object error = Napi::Object::New(env);
+            error.Set("code", Napi::Number::New(env, DISP_CHANGE_BADMODE));
+            error.Set("message", Napi::String::New(env,
+                                                   "The requested resolution and refresh rate combination is not supported. "
+                                                   "Width: " +
+                                                       std::to_string(width) +
+                                                       ", Height: " + std::to_string(height) +
+                                                       ", Refresh Rate: " + std::to_string(refreshRate)));
+            return error;
+        }
+
+        // Apply the settings
         long result = ChangeDisplaySettingsEx(id.c_str(), &newDevMode, NULL, CDS_UPDATEREGISTRY, NULL);
 
         if (result != DISP_CHANGE_SUCCESSFUL)
